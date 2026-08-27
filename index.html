@@ -3,78 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>المساعد البصري الذكي للمكفوفين - النسخة الفاخرة</title>
+    <title>المساعد البصري والملاحة الذكية للمكفوفين</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
-        body { background-color: #0d0d0d; color: #00ff66; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 15px; margin: 0; }
-        .card { background: #1a1a1a; border: 2px solid #00ff66; border-radius: 20px; padding: 20px; max-width: 450px; margin: auto; box-shadow: 0 0 20px rgba(0,255,102,0.2); }
-        h1 { font-size: 22px; color: #ffffff; margin-bottom: 5px; }
-        .tag { background: #00ff66; color: #000; font-weight: bold; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
-        video { width: 100%; border-radius: 15px; border: 2px solid #333; margin-top: 15px; transform: scaleX(-1); }
-        .alert-box { background: #262626; color: #fff; padding: 15px; border-radius: 12px; margin-top: 15px; font-size: 18px; font-weight: bold; border-right: 5px solid #00ff66; }
-        button { background: linear-gradient(135deg, #00ff66, #00b347); color: #000; border: none; padding: 16px 25px; font-size: 18px; font-weight: bold; border-radius: 25px; cursor: pointer; width: 100%; margin-top: 15px; }
+        body { background-color: #050505; color: #00ff66; font-family: system-ui, sans-serif; text-align: center; padding: 15px; margin: 0; }
+        .card { background: #111; border: 2px solid #00ff66; border-radius: 20px; padding: 20px; max-width: 450px; margin: auto; box-shadow: 0 0 15px rgba(0,255,102,0.2); }
+        h1 { font-size: 20px; color: #fff; margin-bottom: 5px; }
+        .tag { background: #00ff66; color: #000; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: bold; }
+        video { width: 100%; border-radius: 12px; border: 1px solid #333; transform: scaleX(-1); margin-top: 10px; }
+        .alert-box { background: #1e1e1e; color: #fff; padding: 15px; border-radius: 10px; margin-top: 15px; font-size: 18px; font-weight: bold; border-right: 6px solid #00ff66; line-height: 1.4; }
+        button { background: #00ff66; color: #000; border: none; padding: 18px 25px; font-size: 19px; font-weight: bold; border-radius: 30px; cursor: pointer; width: 100%; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <span class="tag">AI PRO V2.0</span>
-    <h1>👁️ عيني الرقمية - المساعد الذكي</h1>
-    
-    <button id="start-btn" onclick="initSystem()">🚀 تشغيل النظام المتقدم</button>
-
+    <span class="tag">NAVIGATION V3.0</span>
+    <h1>👁️ نظام الملاحة والتوجيه الذكي</h1>
+    <button id="start-btn" onclick="initSystem()">🚀 تشغيل الموجه الذكي</button>
     <video id="webcam" autoplay playsinline muted></video>
-    <div class="alert-box" id="status">جاهز للبدء...</div>
+    <div class="alert-box" id="status">جاهز... اضغط الزر أعلاه للبدء</div>
 </div>
 
 <script>
     let model;
-    let lastSpoken = "";
+    let isDetecting = false;
+    let lastAlert = "";
     let lastTime = 0;
-    let frameCounter = 0;
 
-    // قاموس الأجسام المتقدم والمترجم للمخاطر
-    const smartObjects = {
-        'oven': 'خطر، فرن أو غاز حراري',
-        'microwave': 'جهاز ميكروويف حراري',
-        'sink': 'مغسلة مياه',
-        'refrigerator': 'ثلاجة، حاجز كبير',
-        'chair': 'كرسي أمامك',
-        'table': 'طاولة أمامك',
-        'dining table': 'طاولة طعام',
-        'person': 'شخص أمامك',
+    const targets = {
+        'oven': 'فرن أو غاز',
+        'microwave': 'ميكروويف',
+        'sink': 'مغسلة',
+        'refrigerator': 'ثلاجة',
+        'chair': 'كرسي',
+        'table': 'طاولة',
+        'dining table': 'طاولة',
+        'person': 'شخص',
         'cell phone': 'جوال',
-        'laptop': 'كمبيوتر محمول',
-        'clock': 'ساعة حائط',
-        'door': 'باب أو ممر',
-        'tv': 'شاشة أو جهاز كهربائي'
+        'laptop': 'جهاز كمبيوتر',
+        'tv': 'شاشة كهربائية',
+        'door': 'باب'
     };
 
-    function speakFast(text) {
+    function speakNow(text) {
         const now = Date.now();
-        // تقليل زمن الانتظار إلى ثانية واحدة فقط لاستجابة فورية فائقة
-        if (text === lastSpoken && (now - lastTime) < 1200) return;
+        // تجميع التنبيه لمنع التكرار المزعج في أقل من ثانيتين
+        if (text === lastAlert && (now - lastTime) < 2000) return;
 
-        window.speechSynthesis.cancel(); // إيقاف الصوت القديم فوراً لنطق التنبيه الجديد
+        window.speechSynthesis.cancel();
         const msg = new SpeechSynthesisUtterance(text);
         msg.lang = 'ar-SA';
-        msg.rate = 1.3; // تسريع نطق الصوت بنسبة 30% لتنبيه أسرع
+        msg.rate = 1.3; 
         window.speechSynthesis.speak(msg);
 
-        lastSpoken = text;
+        lastAlert = text;
         lastTime = now;
     }
 
     async function initSystem() {
         const status = document.getElementById('status');
-        speakFast("جاري تشغيل محرك الذكاء الاصطناعي الفائق");
-        status.innerText = "⏳ جاري تحميل المحرك السريع...";
+        status.innerText = "⏳ جاري تشغيل المحرك الملاحي...";
 
         try {
-            model = await cocoSsd.load({ base: 'lite_mobilenet_v2' }); // تحميل النسخة الأسرع خفة
+            model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+            
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } 
+                video: { facingMode: "environment", width: 320, height: 240 } 
             });
 
             const video = document.getElementById('webcam');
@@ -82,49 +78,62 @@
 
             video.onloadeddata = () => {
                 document.getElementById('start-btn').style.display = 'none';
-                status.innerText = "🟢 الرادار يعمل الآن بأقصى سرعة";
-                speakFast("النظام يعمل ويراقب المحيط الآن");
-                processVideo(video);
+                status.innerText = "🟢 الموجه الملاحي يعمل الآن";
+                speakNow("تم تشغيل نظام التوجيه والملاحة بنجاح");
+                isDetecting = true;
+                detectLoop(video);
             };
         } catch (e) {
-            status.innerText = "❌ تعذر تفعيل الكاميرا";
-            speakFast("خطأ في تشغيل الكاميرا");
+            status.innerText = "❌ خطأ في تشغيل الكاميرا";
         }
     }
 
-    async function processVideo(video) {
-        frameCounter++;
-        
-        // معالجة إطار كل إطارين لزيادة سلاسة وسرعة التطبيق
-        if (frameCounter % 2 === 0) {
-            const predictions = await model.detect(video, 6, 0.45); // زيادة الحساسية وتقليل وقت المعالجة
+    async function detectLoop(video) {
+        if (!isDetecting) return;
 
-            if (predictions.length > 0) {
-                let foundRisk = false;
+        const predictions = await model.detect(video, 3, 0.4);
 
-                predictions.forEach(item => {
-                    const objName = item.class;
+        if (predictions.length > 0) {
+            let item = predictions[0];
+            let name = item.class;
+            
+            // حسابات المكان والمسافة
+            let xCenter = item.bbox[0] + (item.bbox[2] / 2); // موقع الجسم أفقياً
+            let area = item.bbox[2] * item.bbox[3]; // مساحة الجسم (تقدير القرب)
+            
+            let videoWidth = video.videoWidth || 320;
+            let navigationMsg = "";
 
-                    // حساب المساحة التقريبية للجسم لمعرفة القرب الشديد (مثل الجدار أو الحاجز)
-                    const area = item.bbox[2] * item.bbox[3];
-                    
-                    if (smartObjects[objName]) {
-                        let alertText = smartObjects[objName];
-                        
-                        // إذا كان الجسم يغطي أكثر من 50% من الشاشة يعتبر حاجزاً قريباً جداً
-                        if (area > 80000) {
-                            alertText = `انتبه، جدار أو ${alertText} قريب جداً`;
-                        }
+            // 1. حساب المسافة بالخطوات التقديرية بناءً على المساحة
+            let steps = "3 خطوات";
+            if (area > 35000) steps = "خطوة واحدة";
+            else if (area > 20000) steps = "خطوتين";
 
-                        document.getElementById('status').innerText = alertText;
-                        speakFast(alertText);
-                        foundRisk = true;
-                    }
-                });
+            // 2. تحليل الجدران والحواجز الكبيرة المغلقة
+            if (area > 50000) {
+                navigationMsg = "انتبه، جدار أمامك مباشرة! يرجى لف الجوال لتحديد الاتجاه الآمن";
+            } 
+            // 3. التوجيه المكاني (يمين / يسار / وسط)
+            else if (targets[name] || area > 15000) {
+                let objectName = targets[name] || "حاجز";
+
+                // تقسيم الكاميرا: يسار (أول 33%) - وسط (33% إلى 66%) - يمين (آخر 33%)
+                if (xCenter < videoWidth / 3) {
+                    navigationMsg = `${objectName} على اليسار بعد ${steps}. تقدم للامام واعدل يميناً`;
+                } else if (xCenter > (videoWidth * 2) / 3) {
+                    navigationMsg = `${objectName} على اليمين بعد ${steps}. تقدم للامام واعدل يساراً`;
+                } else {
+                    navigationMsg = `انتبه، ${objectName} أمامك مباشرة بعد ${steps}. يرجى الالتفاف يساراً أو يميناً`;
+                }
+            }
+
+            if (navigationMsg !== "") {
+                document.getElementById('status').innerText = navigationMsg;
+                speakNow(navigationMsg);
             }
         }
 
-        requestAnimationFrame(() => processVideo(video));
+        setTimeout(() => detectLoop(video), 1200); // تحديث التوجيه كل ثانية لتسهيل المشي
     }
 </script>
 
