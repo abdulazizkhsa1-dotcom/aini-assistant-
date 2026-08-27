@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>المساعد البصري الصوتي للمكفوفين</title>
+    <!-- تحميل مكتبات الذكاء الاصطناعي مجاناً -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <style>
+        body { background-color: #121212; color: #ffffff; font-family: system-ui, sans-serif; text-align: center; padding: 20px; margin: 0; }
+        h1 { color: #00e676; font-size: 24px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        video { width: 100%; border-radius: 15px; border: 3px solid #00e676; margin-top: 15px; transform: scaleX(-1); }
+        .status-box { background-color: #1e1e1e; border-radius: 12px; padding: 15px; margin-top: 15px; font-size: 18px; border: 1px solid #333; line-height: 1.5; }
+        button { background-color: #00e676; color: #000; border: none; padding: 18px 30px; font-size: 20px; font-weight: bold; border-radius: 30px; cursor: pointer; margin-top: 15px; width: 100%; box-shadow: 0 4px 15px rgba(0,230,118,0.3); }
+        button:active { background-color: #00b259; }
+        .permission-hint { color: #ffeb3b; font-size: 14px; margin-top: 10px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>👁️ المساعد البصري الصوتي</h1>
+    <p>مشروع التخرج - الدعم الفني وتقنية المعلومات</p>
+    
+    <button id="start-btn" onclick="requestCameraPermission()">تشغيل المساعد وطلب الإذن</button>
+    <div id="permission-hint" class="permission-hint">⚠️ يرجى الضغط على (سماح / Allow) في النافذة المنبثقة أعلاه</div>
+
+    <video id="webcam" autoplay playsinline muted></video>
+    
+    <div class="status-box" id="status">اضغط على الزر أعلاه للبدء وإعطاء صلاحية الكاميرا</div>
+</div>
+
+<script>
+    let model;
+    let lastSpokenText = "";
+    let lastSpokenTime = 0;
+
+    const translations = {
+        'chair': 'كرسي',
+        'table': 'طاولة',
+        'person': 'شخص',
+        'cell phone': 'جوال',
+        'laptop': 'كمبيوتر محمول',
+        'bottle': 'قارورة',
+        'cup': 'كأس',
+        'keyboard': 'لوحة مفاتيح'
+    };
+
+    function speak(text) {
+        const now = Date.now();
+        if (text === lastSpokenText && (now - lastSpokenTime) < 3000) return;
+
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ar-SA';
+        utterance.rate = 1.0;
+        window.speechSynthesis.speak(utterance);
+
+        lastSpokenText = text;
+        lastSpokenTime = now;
+    }
+
+    async function requestCameraPermission() {
+        const statusDiv = document.getElementById('status');
+        const hintDiv = document.getElementById('permission-hint');
+        const startBtn = document.getElementById('start-btn');
+
+        // تنبيه صوتي وتوجيهي
+        speak("يرجى السماح بالوصول للكاميرا للبدء");
+        statusDiv.innerText = "⏳ جاري طلب إذن الكاميرا... يرجى الضغط على (سماح/Allow)";
+        hintDiv.style.display = "block";
+
+        try {
+            // طلب إذن فتح الكاميرا (الخلفية للجوال أو العادية للكمبيوتر)
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" } 
+            });
+
+            // إذا تم منح الإذن بنجاح
+            const video = document.getElementById('webcam');
+            video.srcObject = stream;
+            
+            hintDiv.style.display = "none";
+            startBtn.style.display = "none";
+            statusDiv.innerText = "⏳ تم أخذ الإذن! جاري تحميل الذكاء الاصطناعي...";
+            speak("تم منح الإذن، جاري تشغيل النظام");
+
+            // تحميل نموذج الذكاء الاصطناعي بعد إذن الكاميرا
+            model = await cocoSsd.load();
+
+            video.onloadeddata = () => {
+                statusDiv.innerText = "🟢 النظام يعمل ويراقب المحيط...";
+                speak("المساعد البصري جاهز ويعمل الآن");
+                detectFrame(video);
+            };
+
+        } catch (err) {
+            // في حال رفض الإذن أو حدوث خطأ
+            console.error("Camera permission error:", err);
+            hintDiv.style.display = "none";
+            
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                statusDiv.innerText = "❌ تم رفض إذن الكاميرا. يرجى تفعيل الإذن من إعدادات المتصفح وإعادة المحاولة.";
+                speak("عذراً، تم رفض الوصول للكاميرا. يرجى تفعيل الإذن من الإعدادات");
+            } else {
+                statusDiv.innerText = "❌ تعذر العثور على كاميرا متصلة بالجهاز.";
+                speak("عذراً، لم يتم العثور على كاميرا");
+            }
+        }
+    }
+
+    async function detectFrame(video) {
+        const predictions = await model.detect(video);
+
+        predictions.forEach(prediction => {
+            const englishName = prediction.class;
+            
+            if (translations[englishName] && prediction.score > 0.6) {
+                const arabicName = translations[englishName];
+                const alertMessage = `انتبه، أمامك ${arabicName}`;
+                
+                document.getElementById('status').innerText = alertMessage;
+                speak(alertMessage);
+            }
+        });
+
+        requestAnimationFrame(() => detectFrame(video));
+    }
+</script>
+
+</body>
+</html>
