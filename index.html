@@ -3,27 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>المساعد البصري والملاحة الذكية للمكفوفين</title>
+    <title>نظام الملاحة والمساعد البصري للمكفوفين</title>
+    <!-- تحميل مكتبات الذكاء الاصطناعي -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
         body { background-color: #050505; color: #00ff66; font-family: system-ui, sans-serif; text-align: center; padding: 15px; margin: 0; }
-        .card { background: #111; border: 2px solid #00ff66; border-radius: 20px; padding: 20px; max-width: 450px; margin: auto; box-shadow: 0 0 15px rgba(0,255,102,0.2); }
+        .card { background: #111; border: 2px solid #00ff66; border-radius: 20px; padding: 20px; max-width: 450px; margin: auto; box-shadow: 0 0 20px rgba(0,255,102,0.2); }
         h1 { font-size: 20px; color: #fff; margin-bottom: 5px; }
         .tag { background: #00ff66; color: #000; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: bold; }
         video { width: 100%; border-radius: 12px; border: 1px solid #333; transform: scaleX(-1); margin-top: 10px; }
         .alert-box { background: #1e1e1e; color: #fff; padding: 15px; border-radius: 10px; margin-top: 15px; font-size: 18px; font-weight: bold; border-right: 6px solid #00ff66; line-height: 1.4; }
-        button { background: #00ff66; color: #000; border: none; padding: 18px 25px; font-size: 19px; font-weight: bold; border-radius: 30px; cursor: pointer; width: 100%; margin-top: 10px; }
+        button { background: #00ff66; color: #000; border: none; padding: 18px 25px; font-size: 19px; font-weight: bold; border-radius: 30px; cursor: pointer; width: 100%; margin-top: 10px; box-shadow: 0 4px 15px rgba(0,255,102,0.3); }
+        button:active { background-color: #00b347; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <span class="tag">NAVIGATION V3.0</span>
-    <h1>👁️ نظام الملاحة والتوجيه الذكي</h1>
-    <button id="start-btn" onclick="initSystem()">🚀 تشغيل الموجه الذكي</button>
+    <span class="tag">PRO AUDIO & NAV V4.0</span>
+    <h1>👁️ الموجه الذكي والمساعد البصري</h1>
+    
+    <button id="start-btn" onclick="initSystem()">🚀 تفعيل الصوت وتشغيل الموجه</button>
+    
     <video id="webcam" autoplay playsinline muted></video>
-    <div class="alert-box" id="status">جاهز... اضغط الزر أعلاه للبدء</div>
+    <div class="alert-box" id="status">جاهز... اضغط الزر أعلاه لتفعيل الصوت والتوجيه</div>
 </div>
 
 <script>
@@ -31,44 +35,71 @@
     let isDetecting = false;
     let lastAlert = "";
     let lastTime = 0;
+    let arabicVoice = null;
 
+    // قاموس التنبيهات والأجسام المترجمة
     const targets = {
-        'oven': 'فرن أو غاز',
+        'oven': 'فرن أو غاز حراري',
         'microwave': 'ميكروويف',
-        'sink': 'مغسلة',
+        'sink': 'مغسلة مياه',
         'refrigerator': 'ثلاجة',
         'chair': 'كرسي',
         'table': 'طاولة',
-        'dining table': 'طاولة',
+        'dining table': 'طاولة طعام',
         'person': 'شخص',
         'cell phone': 'جوال',
-        'laptop': 'جهاز كمبيوتر',
+        'laptop': 'كمبيوتر',
         'tv': 'شاشة كهربائية',
         'door': 'باب'
     };
 
+    // تحميل قواميس الأصوات المتاحة بالجهاز وتأكيد الصوت العربي
+    function loadVoices() {
+        if ('speechSynthesis' in window) {
+            const voices = window.speechSynthesis.getVoices();
+            arabicVoice = voices.find(v => v.lang.startsWith('ar')) || null;
+        }
+    }
+
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices();
+    }
+
+    // محرك النطق الفوري والمعدل
     function speakNow(text) {
         const now = Date.now();
-        // تجميع التنبيه لمنع التكرار المزعج في أقل من ثانيتين
         if (text === lastAlert && (now - lastTime) < 2000) return;
 
-        window.speechSynthesis.cancel();
-        const msg = new SpeechSynthesisUtterance(text);
-        msg.lang = 'ar-SA';
-        msg.rate = 1.3; 
-        window.speechSynthesis.speak(msg);
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); // إيقاف أية نطق قديم فوري
 
-        lastAlert = text;
-        lastTime = now;
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'ar-SA';
+            if (arabicVoice) msg.voice = arabicVoice;
+            msg.rate = 1.2; // سرعة وضوح متوازنة
+            msg.pitch = 1.0;
+
+            window.speechSynthesis.speak(msg);
+
+            lastAlert = text;
+            lastTime = now;
+        }
     }
 
     async function initSystem() {
         const status = document.getElementById('status');
-        status.innerText = "⏳ جاري تشغيل المحرك الملاحي...";
+        
+        // 1. تحفيز الصوت فور الضغط على الزر لتجاوز الحظر
+        loadVoices();
+        speakNow("جاري تفعيل الصوت وتعديل الكاميرا");
+        status.innerText = "⏳ جاري تحميل المحرك والملاحة...";
 
         try {
+            // 2. تحميل الذكاء الاصطناعي
             model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
             
+            // 3. تشغيل الكاميرا
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: "environment", width: 320, height: 240 } 
             });
@@ -78,13 +109,14 @@
 
             video.onloadeddata = () => {
                 document.getElementById('start-btn').style.display = 'none';
-                status.innerText = "🟢 الموجه الملاحي يعمل الآن";
+                status.innerText = "🟢 الموجه الملاحي يعمل والصوت مفعّل";
                 speakNow("تم تشغيل نظام التوجيه والملاحة بنجاح");
                 isDetecting = true;
                 detectLoop(video);
             };
         } catch (e) {
-            status.innerText = "❌ خطأ في تشغيل الكاميرا";
+            status.innerText = "❌ خطأ: يرجى إعطاء صلاحية الكاميرا في المتصفح";
+            speakNow("عذراً تعذر الوصول للكاميرا");
         }
     }
 
@@ -97,33 +129,30 @@
             let item = predictions[0];
             let name = item.class;
             
-            // حسابات المكان والمسافة
-            let xCenter = item.bbox[0] + (item.bbox[2] / 2); // موقع الجسم أفقياً
-            let area = item.bbox[2] * item.bbox[3]; // مساحة الجسم (تقدير القرب)
-            
+            let xCenter = item.bbox[0] + (item.bbox[2] / 2);
+            let area = item.bbox[2] * item.bbox[3];
             let videoWidth = video.videoWidth || 320;
             let navigationMsg = "";
 
-            // 1. حساب المسافة بالخطوات التقديرية بناءً على المساحة
+            // حساب تقدير الخطوات
             let steps = "3 خطوات";
             if (area > 35000) steps = "خطوة واحدة";
             else if (area > 20000) steps = "خطوتين";
 
-            // 2. تحليل الجدران والحواجز الكبيرة المغلقة
+            // فحص الجدران المغلقة
             if (area > 50000) {
                 navigationMsg = "انتبه، جدار أمامك مباشرة! يرجى لف الجوال لتحديد الاتجاه الآمن";
             } 
-            // 3. التوجيه المكاني (يمين / يسار / وسط)
+            // التوجيه التكتيكي (يمين / يسار / وسط)
             else if (targets[name] || area > 15000) {
                 let objectName = targets[name] || "حاجز";
 
-                // تقسيم الكاميرا: يسار (أول 33%) - وسط (33% إلى 66%) - يمين (آخر 33%)
                 if (xCenter < videoWidth / 3) {
                     navigationMsg = `${objectName} على اليسار بعد ${steps}. تقدم للامام واعدل يميناً`;
                 } else if (xCenter > (videoWidth * 2) / 3) {
                     navigationMsg = `${objectName} على اليمين بعد ${steps}. تقدم للامام واعدل يساراً`;
                 } else {
-                    navigationMsg = `انتبه، ${objectName} أمامك مباشرة بعد ${steps}. يرجى الالتفاف يساراً أو يميناً`;
+                    navigationMsg = `انتبه، ${objectName} أمامك بعد ${steps}. يرجى الالتفاف يساراً أو يميناً`;
                 }
             }
 
@@ -133,7 +162,7 @@
             }
         }
 
-        setTimeout(() => detectLoop(video), 1200); // تحديث التوجيه كل ثانية لتسهيل المشي
+        setTimeout(() => detectLoop(video), 1200);
     }
 </script>
 
