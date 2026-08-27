@@ -3,130 +3,128 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>المساعد البصري الصوتي للمكفوفين</title>
-    <!-- تحميل مكتبات الذكاء الاصطناعي مجاناً -->
+    <title>المساعد البصري الذكي للمكفوفين - النسخة الفاخرة</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
-        body { background-color: #121212; color: #ffffff; font-family: system-ui, sans-serif; text-align: center; padding: 20px; margin: 0; }
-        h1 { color: #00e676; font-size: 24px; }
-        .container { max-width: 500px; margin: 0 auto; }
-        video { width: 100%; border-radius: 15px; border: 3px solid #00e676; margin-top: 15px; transform: scaleX(-1); }
-        .status-box { background-color: #1e1e1e; border-radius: 12px; padding: 15px; margin-top: 15px; font-size: 18px; border: 1px solid #333; line-height: 1.5; }
-        button { background-color: #00e676; color: #000; border: none; padding: 18px 30px; font-size: 20px; font-weight: bold; border-radius: 30px; cursor: pointer; margin-top: 15px; width: 100%; box-shadow: 0 4px 15px rgba(0,230,118,0.3); }
-        button:active { background-color: #00b259; }
-        .permission-hint { color: #ffeb3b; font-size: 14px; margin-top: 10px; display: none; }
+        body { background-color: #0d0d0d; color: #00ff66; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 15px; margin: 0; }
+        .card { background: #1a1a1a; border: 2px solid #00ff66; border-radius: 20px; padding: 20px; max-width: 450px; margin: auto; box-shadow: 0 0 20px rgba(0,255,102,0.2); }
+        h1 { font-size: 22px; color: #ffffff; margin-bottom: 5px; }
+        .tag { background: #00ff66; color: #000; font-weight: bold; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+        video { width: 100%; border-radius: 15px; border: 2px solid #333; margin-top: 15px; transform: scaleX(-1); }
+        .alert-box { background: #262626; color: #fff; padding: 15px; border-radius: 12px; margin-top: 15px; font-size: 18px; font-weight: bold; border-right: 5px solid #00ff66; }
+        button { background: linear-gradient(135deg, #00ff66, #00b347); color: #000; border: none; padding: 16px 25px; font-size: 18px; font-weight: bold; border-radius: 25px; cursor: pointer; width: 100%; margin-top: 15px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>👁️ المساعد البصري الصوتي</h1>
-    <p>مشروع التخرج - الدعم الفني وتقنية المعلومات</p>
+<div class="card">
+    <span class="tag">AI PRO V2.0</span>
+    <h1>👁️ عيني الرقمية - المساعد الذكي</h1>
     
-    <button id="start-btn" onclick="requestCameraPermission()">تشغيل المساعد وطلب الإذن</button>
-    <div id="permission-hint" class="permission-hint">⚠️ يرجى الضغط على (سماح / Allow) في النافذة المنبثقة أعلاه</div>
+    <button id="start-btn" onclick="initSystem()">🚀 تشغيل النظام المتقدم</button>
 
     <video id="webcam" autoplay playsinline muted></video>
-    
-    <div class="status-box" id="status">اضغط على الزر أعلاه للبدء وإعطاء صلاحية الكاميرا</div>
+    <div class="alert-box" id="status">جاهز للبدء...</div>
 </div>
 
 <script>
     let model;
-    let lastSpokenText = "";
-    let lastSpokenTime = 0;
+    let lastSpoken = "";
+    let lastTime = 0;
+    let frameCounter = 0;
 
-    const translations = {
-        'chair': 'كرسي',
-        'table': 'طاولة',
-        'person': 'شخص',
+    // قاموس الأجسام المتقدم والمترجم للمخاطر
+    const smartObjects = {
+        'oven': 'خطر، فرن أو غاز حراري',
+        'microwave': 'جهاز ميكروويف حراري',
+        'sink': 'مغسلة مياه',
+        'refrigerator': 'ثلاجة، حاجز كبير',
+        'chair': 'كرسي أمامك',
+        'table': 'طاولة أمامك',
+        'dining table': 'طاولة طعام',
+        'person': 'شخص أمامك',
         'cell phone': 'جوال',
         'laptop': 'كمبيوتر محمول',
-        'bottle': 'قارورة',
-        'cup': 'كأس',
-        'keyboard': 'لوحة مفاتيح'
+        'clock': 'ساعة حائط',
+        'door': 'باب أو ممر',
+        'tv': 'شاشة أو جهاز كهربائي'
     };
 
-    function speak(text) {
+    function speakFast(text) {
         const now = Date.now();
-        if (text === lastSpokenText && (now - lastSpokenTime) < 3000) return;
+        // تقليل زمن الانتظار إلى ثانية واحدة فقط لاستجابة فورية فائقة
+        if (text === lastSpoken && (now - lastTime) < 1200) return;
 
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'ar-SA';
-        utterance.rate = 1.0;
-        window.speechSynthesis.speak(utterance);
+        window.speechSynthesis.cancel(); // إيقاف الصوت القديم فوراً لنطق التنبيه الجديد
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = 'ar-SA';
+        msg.rate = 1.3; // تسريع نطق الصوت بنسبة 30% لتنبيه أسرع
+        window.speechSynthesis.speak(msg);
 
-        lastSpokenText = text;
-        lastSpokenTime = now;
+        lastSpoken = text;
+        lastTime = now;
     }
 
-    async function requestCameraPermission() {
-        const statusDiv = document.getElementById('status');
-        const hintDiv = document.getElementById('permission-hint');
-        const startBtn = document.getElementById('start-btn');
-
-        // تنبيه صوتي وتوجيهي
-        speak("يرجى السماح بالوصول للكاميرا للبدء");
-        statusDiv.innerText = "⏳ جاري طلب إذن الكاميرا... يرجى الضغط على (سماح/Allow)";
-        hintDiv.style.display = "block";
+    async function initSystem() {
+        const status = document.getElementById('status');
+        speakFast("جاري تشغيل محرك الذكاء الاصطناعي الفائق");
+        status.innerText = "⏳ جاري تحميل المحرك السريع...";
 
         try {
-            // طلب إذن فتح الكاميرا (الخلفية للجوال أو العادية للكمبيوتر)
+            model = await cocoSsd.load({ base: 'lite_mobilenet_v2' }); // تحميل النسخة الأسرع خفة
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment" } 
+                video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } 
             });
 
-            // إذا تم منح الإذن بنجاح
             const video = document.getElementById('webcam');
             video.srcObject = stream;
-            
-            hintDiv.style.display = "none";
-            startBtn.style.display = "none";
-            statusDiv.innerText = "⏳ تم أخذ الإذن! جاري تحميل الذكاء الاصطناعي...";
-            speak("تم منح الإذن، جاري تشغيل النظام");
-
-            // تحميل نموذج الذكاء الاصطناعي بعد إذن الكاميرا
-            model = await cocoSsd.load();
 
             video.onloadeddata = () => {
-                statusDiv.innerText = "🟢 النظام يعمل ويراقب المحيط...";
-                speak("المساعد البصري جاهز ويعمل الآن");
-                detectFrame(video);
+                document.getElementById('start-btn').style.display = 'none';
+                status.innerText = "🟢 الرادار يعمل الآن بأقصى سرعة";
+                speakFast("النظام يعمل ويراقب المحيط الآن");
+                processVideo(video);
             };
-
-        } catch (err) {
-            // في حال رفض الإذن أو حدوث خطأ
-            console.error("Camera permission error:", err);
-            hintDiv.style.display = "none";
-            
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                statusDiv.innerText = "❌ تم رفض إذن الكاميرا. يرجى تفعيل الإذن من إعدادات المتصفح وإعادة المحاولة.";
-                speak("عذراً، تم رفض الوصول للكاميرا. يرجى تفعيل الإذن من الإعدادات");
-            } else {
-                statusDiv.innerText = "❌ تعذر العثور على كاميرا متصلة بالجهاز.";
-                speak("عذراً، لم يتم العثور على كاميرا");
-            }
+        } catch (e) {
+            status.innerText = "❌ تعذر تفعيل الكاميرا";
+            speakFast("خطأ في تشغيل الكاميرا");
         }
     }
 
-    async function detectFrame(video) {
-        const predictions = await model.detect(video);
+    async function processVideo(video) {
+        frameCounter++;
+        
+        // معالجة إطار كل إطارين لزيادة سلاسة وسرعة التطبيق
+        if (frameCounter % 2 === 0) {
+            const predictions = await model.detect(video, 6, 0.45); // زيادة الحساسية وتقليل وقت المعالجة
 
-        predictions.forEach(prediction => {
-            const englishName = prediction.class;
-            
-            if (translations[englishName] && prediction.score > 0.6) {
-                const arabicName = translations[englishName];
-                const alertMessage = `انتبه، أمامك ${arabicName}`;
-                
-                document.getElementById('status').innerText = alertMessage;
-                speak(alertMessage);
+            if (predictions.length > 0) {
+                let foundRisk = false;
+
+                predictions.forEach(item => {
+                    const objName = item.class;
+
+                    // حساب المساحة التقريبية للجسم لمعرفة القرب الشديد (مثل الجدار أو الحاجز)
+                    const area = item.bbox[2] * item.bbox[3];
+                    
+                    if (smartObjects[objName]) {
+                        let alertText = smartObjects[objName];
+                        
+                        // إذا كان الجسم يغطي أكثر من 50% من الشاشة يعتبر حاجزاً قريباً جداً
+                        if (area > 80000) {
+                            alertText = `انتبه، جدار أو ${alertText} قريب جداً`;
+                        }
+
+                        document.getElementById('status').innerText = alertText;
+                        speakFast(alertText);
+                        foundRisk = true;
+                    }
+                });
             }
-        });
+        }
 
-        requestAnimationFrame(() => detectFrame(video));
+        requestAnimationFrame(() => processVideo(video));
     }
 </script>
 
