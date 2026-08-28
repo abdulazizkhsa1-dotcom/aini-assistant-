@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام الملاحة والمساعد البصري للمكفوفين</title>
-    <!-- تحميل مكتبات الذكاء الاصطناعي -->
+    <title>نظام الملاحة الذكي وتصنيف المخاطر للمكفوفين</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
@@ -14,46 +13,31 @@
         .tag { background: #00ff66; color: #000; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: bold; }
         video { width: 100%; border-radius: 12px; border: 1px solid #333; transform: scaleX(-1); margin-top: 10px; }
         .alert-box { background: #1e1e1e; color: #fff; padding: 15px; border-radius: 10px; margin-top: 15px; font-size: 18px; font-weight: bold; border-right: 6px solid #00ff66; line-height: 1.4; }
+        .mic-box { background: #222; color: #ffeb3b; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px; }
         button { background: #00ff66; color: #000; border: none; padding: 18px 25px; font-size: 19px; font-weight: bold; border-radius: 30px; cursor: pointer; width: 100%; margin-top: 10px; box-shadow: 0 4px 15px rgba(0,255,102,0.3); }
-        button:active { background-color: #00b347; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <span class="tag">PRO AUDIO & NAV V4.0</span>
-    <h1>👁️ الموجه الذكي والمساعد البصري</h1>
+    <span class="tag">SMART NAV V6.0</span>
+    <h1>👁️ الموجه البصري الذكي</h1>
     
-    <button id="start-btn" onclick="initSystem()">🚀 تفعيل الصوت وتشغيل الموجه</button>
+    <button id="start-btn" onclick="initSystem()">🚀 تشغيل النظام المتقدم</button>
     
     <video id="webcam" autoplay playsinline muted></video>
-    <div class="alert-box" id="status">جاهز... اضغط الزر أعلاه لتفعيل الصوت والتوجيه</div>
+    <div class="alert-box" id="status">جاهز... اضغط الزر أعلاه للبدء</div>
+    <div class="mic-box" id="mic-status">🎙️ الأوامر الصوتية: قل "توقف" للإيقاف أو "تشغيل" للاستئناف</div>
 </div>
 
 <script>
     let model;
     let isDetecting = false;
+    let isPaused = false;
     let lastAlert = "";
     let lastTime = 0;
     let arabicVoice = null;
 
-    // قاموس التنبيهات والأجسام المترجمة
-    const targets = {
-        'oven': 'فرن أو غاز حراري',
-        'microwave': 'ميكروويف',
-        'sink': 'مغسلة مياه',
-        'refrigerator': 'ثلاجة',
-        'chair': 'كرسي',
-        'table': 'طاولة',
-        'dining table': 'طاولة طعام',
-        'person': 'شخص',
-        'cell phone': 'جوال',
-        'laptop': 'كمبيوتر',
-        'tv': 'شاشة كهربائية',
-        'door': 'باب'
-    };
-
-    // تحميل قواميس الأصوات المتاحة بالجهاز وتأكيد الصوت العربي
     function loadVoices() {
         if ('speechSynthesis' in window) {
             const voices = window.speechSynthesis.getVoices();
@@ -66,18 +50,19 @@
         loadVoices();
     }
 
-    // محرك النطق الفوري والمعدل
-    function speakNow(text) {
+    function speakNow(text, force = false) {
+        if (isPaused && !force) return;
+
         const now = Date.now();
-        if (text === lastAlert && (now - lastTime) < 2000) return;
+        if (text === lastAlert && (now - lastTime) < 2200 && !force) return;
 
         if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel(); // إيقاف أية نطق قديم فوري
+            window.speechSynthesis.cancel();
 
             const msg = new SpeechSynthesisUtterance(text);
             msg.lang = 'ar-SA';
             if (arabicVoice) msg.voice = arabicVoice;
-            msg.rate = 1.2; // سرعة وضوح متوازنة
+            msg.rate = 0.95;
             msg.pitch = 1.0;
 
             window.speechSynthesis.speak(msg);
@@ -87,19 +72,41 @@
         }
     }
 
+    function startVoiceRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) return;
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ar-SA';
+        recognition.continuous = true;
+
+        recognition.onresult = (event) => {
+            const lastIndex = event.results.length - 1;
+            const command = event.results[lastIndex][0].transcript.trim().toLowerCase();
+
+            if (command.includes("توقف") || command.includes("قف") || command.includes("كتم")) {
+                isPaused = true;
+                document.getElementById('mic-status').innerText = "⏸️ تم التوقف المؤقت (قل 'تشغيل' للعودة)";
+                speakNow("تم التوقف المؤقت", true);
+            } else if (command.includes("تشغيل") || command.includes("واصل") || command.includes("شغل")) {
+                isPaused = false;
+                document.getElementById('mic-status').innerText = "🎙️ الميكروفون يستمع للأوامر...";
+                speakNow("تم استئناف النظام", true);
+            }
+        };
+
+        recognition.onend = () => { recognition.start(); };
+        recognition.start();
+    }
+
     async function initSystem() {
         const status = document.getElementById('status');
-        
-        // 1. تحفيز الصوت فور الضغط على الزر لتجاوز الحظر
         loadVoices();
-        speakNow("جاري تفعيل الصوت وتعديل الكاميرا");
-        status.innerText = "⏳ جاري تحميل المحرك والملاحة...";
+        speakNow("جاري تشغيل نظام الملاحة الذكي", true);
+        status.innerText = "⏳ جاري تحضير الخوارزميات الذكية...";
 
         try {
-            // 2. تحميل الذكاء الاصطناعي
             model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
-            
-            // 3. تشغيل الكاميرا
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: "environment", width: 320, height: 240 } 
             });
@@ -109,60 +116,71 @@
 
             video.onloadeddata = () => {
                 document.getElementById('start-btn').style.display = 'none';
-                status.innerText = "🟢 الموجه الملاحي يعمل والصوت مفعّل";
-                speakNow("تم تشغيل نظام التوجيه والملاحة بنجاح");
+                status.innerText = "🟢 المحرك الذكي يعمل باحترافية";
+                speakNow("النظام الذكي يعمل الآن ويحلل المحيط", true);
                 isDetecting = true;
+                startVoiceRecognition();
                 detectLoop(video);
             };
         } catch (e) {
-            status.innerText = "❌ خطأ: يرجى إعطاء صلاحية الكاميرا في المتصفح";
-            speakNow("عذراً تعذر الوصول للكاميرا");
+            status.innerText = "❌ تعذر الوصول للكاميرا والمايك";
         }
     }
 
     async function detectLoop(video) {
         if (!isDetecting) return;
 
-        const predictions = await model.detect(video, 3, 0.4);
+        if (!isPaused) {
+            const predictions = await model.detect(video, 4, 0.35);
 
-        if (predictions.length > 0) {
-            let item = predictions[0];
-            let name = item.class;
-            
-            let xCenter = item.bbox[0] + (item.bbox[2] / 2);
-            let area = item.bbox[2] * item.bbox[3];
-            let videoWidth = video.videoWidth || 320;
-            let navigationMsg = "";
+            if (predictions.length > 0) {
+                let item = predictions[0];
+                let className = item.class;
+                let area = item.bbox[2] * item.bbox[3];
+                let xCenter = item.bbox[0] + (item.bbox[2] / 2);
+                let yBottom = item.bbox[1] + item.bbox[3]; // الجزء السفلي للكشف عن الدرج
+                let videoWidth = video.videoWidth || 320;
+                let videoHeight = video.videoHeight || 240;
 
-            // حساب تقدير الخطوات
-            let steps = "3 خطوات";
-            if (area > 35000) steps = "خطوة واحدة";
-            else if (area > 20000) steps = "خطوتين";
+                let alertMessage = "";
 
-            // فحص الجدران المغلقة
-            if (area > 50000) {
-                navigationMsg = "انتبه، جدار أمامك مباشرة! يرجى لف الجوال لتحديد الاتجاه الآمن";
-            } 
-            // التوجيه التكتيكي (يمين / يسار / وسط)
-            else if (targets[name] || area > 15000) {
-                let objectName = targets[name] || "حاجز";
-
-                if (xCenter < videoWidth / 3) {
-                    navigationMsg = `${objectName} على اليسار بعد ${steps}. تقدم للامام واعدل يميناً`;
-                } else if (xCenter > (videoWidth * 2) / 3) {
-                    navigationMsg = `${objectName} على اليمين بعد ${steps}. تقدم للامام واعدل يساراً`;
-                } else {
-                    navigationMsg = `انتبه، ${objectName} أمامك بعد ${steps}. يرجى الالتفاف يساراً أو يميناً`;
+                // 1. استثناء خاص بالنار والغاز (حالة خطر قصوى)
+                if (className === 'oven' || className === 'microwave') {
+                    alertMessage = "خطر! أمامك نار أو منطقة حرارية، ابتعد فوراً";
                 }
-            }
+                // 2. استثناء خاص بالكرسي
+                else if (className === 'chair') {
+                    if (xCenter < videoWidth / 3) alertMessage = "يوجد كرسي على اليسار، انحرف يميناً لتجاوزه";
+                    else if (xCenter > (videoWidth * 2) / 3) alertMessage = "يوجد كرسي على اليمين، انحرف يساراً لتجاوزه";
+                    else alertMessage = "أمامك كرسي مباشرة، خذ خطوة لليمين أو اليسار لتجاوزه";
+                }
+                // 3. كشف الدرج (أجسام متدرجة ممتدة في أسفل الشاشة)
+                else if (yBottom > videoHeight * 0.85 && area > 25000 && (className === 'stair' || className === 'tv' || className === 'laptop')) {
+                    alertMessage = "انتبه! أمامك درج، توقف واستكشف بقدمك";
+                }
+                // 4. تصنيف العوائق الكبيرة (باب، جدار، ثلاجة، أو جسم غطى مساحة ضخمة)
+                else if (className === 'door' || className === 'refrigerator' || area > 45000) {
+                    alertMessage = "أمامك عائق كبير! قم بتدوير الجوال لتحديد الاتجاه المفتوح";
+                }
+                // 5. تصنيف العوائق الصغيرة (طاولة، تلفزيون، أجهزة) مع التوجيه لتجاوزها
+                else if (area > 12000) {
+                    if (xCenter < videoWidth / 3) {
+                        alertMessage = "عائق صغير على اليسار، واصل المشي إلى اليمين لتجاوزه";
+                    } else if (xCenter > (videoWidth * 2) / 3) {
+                        alertMessage = "عائق صغير على اليمين، واصل المشي إلى اليسار لتجاوزه";
+                    } else {
+                        alertMessage = "عائق صغير أمامك، انحرف خطوتين لليمين لتجاوزه بآمان";
+                    }
+                }
 
-            if (navigationMsg !== "") {
-                document.getElementById('status').innerText = navigationMsg;
-                speakNow(navigationMsg);
+                if (alertMessage !== "") {
+                    document.getElementById('status').innerText = alertMessage;
+                    speakNow(alertMessage);
+                }
             }
         }
 
-        setTimeout(() => detectLoop(video), 1200);
+        setTimeout(() => detectLoop(video), 1000);
     }
 </script>
 
